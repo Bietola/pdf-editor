@@ -15,22 +15,36 @@ def fill_header(can):
     # Tutor aziendale
     can.drawString(255, 414 - 31, "Nicola Pietroleonardi")
     # Numero convenzione di riferimento
-    #: can.drawString(255, 414 - 46, "???")
+    can.drawString(255, 414 - 46, "254/22")
 
 ## Fill out weekdays
-def fill_weekdays(can, month, year, times_st_pos, times_st, times_n):
+def fill_weekdays(can, year, month, times_st_pos, times_st, times_n):
+    # TODO: Param
+    holidays = []
+
     day = date(year, month, 1)
     # Go to `times_st`th weekday not counting weekends
-    for i in range(times_st):
+    while day.weekday() > 4:
+        day += timedelta(days=1)
+    for i in range(1, times_st):
+        # TODO: Param
+        if i in holidays: day += timedelta(days=1)
         day += timedelta(days=1)
         while day.weekday() > 4:
             day += timedelta(days=1)
     # Do fill
-    for i in range(times_n):
+    i = 0
+    while i < times_n:
         # Stop when month changes
-        if day.month != month: return
+        if day.month != month: break
         # Skip weekends
         while day.weekday() > 4: day += timedelta(days=1)
+        # AC: Skip these days
+        ## Epifania
+        if day.day in holidays:
+            day += timedelta(days=1)
+            # NB. no `i` increment
+            continue
         # Date
         can.drawString(50, times_st_pos - 25*i, day.strftime("%d/%m"))
         # Mattina entrata, uscita
@@ -47,6 +61,7 @@ def fill_weekdays(can, month, year, times_st_pos, times_st, times_n):
         #: can.drawImage(fill_weekdays.signature, 575, times_st_pos - 25*i - 13, 100, 30)
         # Go to next day
         day += timedelta(days=1)
+        i += 1
 #: fill_weekdays.signature = ImageReader(io.BytesIO(Path('./signature.jpg').read_bytes()))
 
 ## Tail
@@ -54,18 +69,15 @@ def fill_tail(can, st_pos):
     can.drawString(60, st_pos, "14/03/23")
 
 ## Fill single page
-def fill_page(page_n, times_st_pos, tail_st_pos, times_st, times_n, header=False):
+def fill_page(page_n, times_st_pos, tail_st_pos, times_st, times_n, year, month, header=False):
     # Needed to write to pdf for some reason
     packet = io.BytesIO()
 
     # create a new PDF with Reportlab
     can = canvas.Canvas(packet, pagesize=letter)
 
-    # Test
-    #: can.drawInlineImage("./signature.jpg", 100, 100, 100-(.5*inch), (.316*inch))
-
     if header: fill_header(can)
-    fill_weekdays(can, 2, 2023, times_st_pos, times_st, times_n)
+    fill_weekdays(can, year, month, times_st_pos, times_st, times_n)
     fill_tail(can, tail_st_pos)
     can.save()
 
@@ -80,14 +92,34 @@ def fill_page(page_n, times_st_pos, tail_st_pos, times_st, times_n, header=False
     return page
 
 # read your existing PDF
+page1_pdf = PdfReader(open("page1.pdf", "rb"))
 existing_pdf = PdfReader(open("input.pdf", "rb"))
-output = PdfWriter()
 
-output.add_page(existing_pdf.pages[0])
-output.add_page(fill_page(1, times_st_pos=310, tail_st_pos=115, times_st=1, times_n= 8, header=True))
-output.add_page(fill_page(2, times_st_pos=425, tail_st_pos=105, times_st=9, times_n=13, header=False))
+def _fill_first_page(output):
+    # Fill first page
+    packet = io.BytesIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+    can.setFont("Helvetica", 24)
+    can.drawString(400, 200, "Hello world")
+    can.save()
+    packet.seek(0)
+    tmp_pdf = PdfReader(packet)
+    page = page1_pdf.pages[0]
+    page.merge_page(tmp_pdf.pages[0])
+    output.add_page(page)
 
-# finally, write "output" to a real file
-outputStream = open("output.pdf", "wb")
-output.write(outputStream)
-outputStream.close()
+def main():
+    output = PdfWriter()
+
+    # Fill pages
+    output.add_page(page1_pdf.pages[0])
+    output.add_page(fill_page(1, times_st_pos=310, tail_st_pos=115, times_st= 14, times_n= 8, year=2022, month=11, header=True))
+    output.add_page(fill_page(2, times_st_pos=425, tail_st_pos=105, times_st=  9, times_n=1, year=2022, month=11, header=False))
+    # output.add_page(fill_page(3, times_st_pos=425, tail_st_pos=145, times_st=22, times_n=13, year=2023, month=2, header=False))
+
+    # finally, write "output" to a real file
+    outputStream = open(f"output.pdf", "wb")
+    output.write(outputStream)
+    outputStream.close()
+
+main()
